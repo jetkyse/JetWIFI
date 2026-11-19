@@ -1,0 +1,61 @@
+name: Build JetWIFI IPA
+
+# Builds an UNSIGNED .ipa on GitHub's free macOS runners.
+# Download it from the run's Artifacts, then sideload with SideStore
+# (SideStore signs it on-device with your free Apple ID).
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_15.4.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned archive)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project JetWIFI.xcodeproj \
+            -scheme JetWIFI \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/JetWIFI.xcarchive" \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty || xcodebuild -project JetWIFI.xcodeproj -scheme JetWIFI -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/JetWIFI.xcarchive" archive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM=""
+
+      - name: Package .ipa
+        run: |
+          APP_PATH="$RUNNER_TEMP/JetWIFI.xcarchive/Products/Applications/JetWIFI.app"
+          if [ ! -d "$APP_PATH" ]; then echo "Build did not produce JetWIFI.app"; exit 1; fi
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -r -y "$GITHUB_WORKSPACE/JetWIFI.ipa" Payload >/dev/null
+          echo "Built JetWIFI.ipa"
+          ls -lh "$GITHUB_WORKSPACE/JetWIFI.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JetWIFI-unsigned-ipa
+          path: JetWIFI.ipa
+          if-no-files-found: error

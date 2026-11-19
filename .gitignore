@@ -1,0 +1,12 @@
+# Xcode / build
+*.xcodeproj
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+Payload/
+
+# macOS
+.DS_Store
+
+# XcodeGen generates the project; keep project.yml, not the .xcodeproj
